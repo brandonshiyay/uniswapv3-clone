@@ -5,6 +5,7 @@ import "forge-std/Script.sol";
 import "../test/ERC20Mintable.sol";
 import "../src/UniSwapV3Pool.sol";
 import "../src/UniSwapV3Manager.sol";
+import "../src/UniSwapV3Quoter.sol";
 import "forge-std/console.sol";
 
 
@@ -28,6 +29,7 @@ contract DeployDevelopment is Script {
         );
 
         UniSwapV3Manager manager = new UniSwapV3Manager();
+        UniSwapV3Quoter quoter = new UniSwapV3Quoter();
 
         token0.mint(msg.sender, wethBalance);
         token1.mint(msg.sender, usdcBalance);
@@ -36,7 +38,7 @@ contract DeployDevelopment is Script {
         console.log("USDC address", address(token1));
         console.log("Pool address", address(pool));
         console.log("Manager address", address(manager));
-
+        console.log("Quoter address", address(quoter));
 
         vm.stopBroadcast();
     }
