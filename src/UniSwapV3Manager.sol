@@ -6,9 +6,13 @@ import "./interfaces/IUniswapV3Manager.sol";
 import "./interfaces/IUniswapV3Pool.sol";
 import "./lib/LiquidityMath.sol";
 import "./lib/TickMath.sol";
+import "forge-std/console.sol";
 
 
 contract UniSwapV3Manager is IUniswapV3Manager{
+
+    error SlippageCheckFailed(uint256 amount0, uint256 amount1);
+
     function mint(MintParams calldata params) public returns (uint256 amount0, uint256 amount1) {
         IUniswapV3Pool pool = IUniswapV3Pool(params.poolAddress);
         
@@ -16,6 +20,7 @@ contract UniSwapV3Manager is IUniswapV3Manager{
         int24 loTick = params.loTick;
         int24 hiTick = params.hiTick;
         
+        // this part is for calculating lowest and highest price to prevent slippage in minting
         uint160 loSqrtPrice = TickMath.getSqrtRatioAtTick(loTick);
         uint160 hiSqrtPrice = TickMath.getSqrtRatioAtTick(hiTick);
 
@@ -39,6 +44,10 @@ contract UniSwapV3Manager is IUniswapV3Manager{
             liquidity,
             extra
         );
+
+        if (amount0 < params.amount0Min && amount1 < params.amount1Min) {
+            revert SlippageCheckFailed(amount0, amount1);
+        }
     }
 
 
@@ -46,9 +55,15 @@ contract UniSwapV3Manager is IUniswapV3Manager{
         address _poolAddress,
         bool zeroForOne,
         uint256 amountSpeficied,
-        bytes calldata data
+        bytes calldata data,
+        uint160 sqrtPriceLimit
     ) public returns (int256, int256) {
-        return UniSwapV3Pool(_poolAddress).swap(msg.sender, zeroForOne, amountSpeficied, data);
+        return UniSwapV3Pool(_poolAddress).swap(
+            msg.sender, 
+            zeroForOne, 
+            amountSpeficied, 
+            data, 
+            sqrtPriceLimit);
     }
 
 
@@ -73,11 +88,13 @@ contract UniSwapV3Manager is IUniswapV3Manager{
         int256 amount1, 
         bytes calldata data) public {
 
+
         IUniswapV3Pool.CallbackData memory extraData = abi.decode(
             data, 
             (IUniswapV3Pool.CallbackData)
         );
 
+        console.log("--- t0 @ %s ; t1 @ %s ; payer @ %s", extraData.token0, extraData.token1, extraData.payer);
 
         if (amount0 > 0) {
             IERC20(extraData.token0).transferFrom(

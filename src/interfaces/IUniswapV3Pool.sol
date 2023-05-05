@@ -26,6 +26,7 @@ interface IUniswapV3Pool {
         address recipient,
         bool zeroForOne,
         uint256 amountSpeficied,
-        bytes calldata data
+        bytes calldata data,
+        uint160 sqrtPriceLimit
     ) external returns (int256, int256);
 }

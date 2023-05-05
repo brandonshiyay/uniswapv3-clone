@@ -9,6 +9,7 @@ import "forge-std/console.sol";
 import "./ERC20Mintable.sol";
 import "../src/UniSwapV3Pool.sol";
 import "../src/interfaces/IUniswapV3Pool.sol";
+import "../src/interfaces/IUniswapV3Manager.sol";
 
 
 contract UniSwapV3PoolSwap is Test, UniSwapV3PoolUtils {
@@ -58,7 +59,8 @@ contract UniSwapV3PoolSwap is Test, UniSwapV3PoolUtils {
             address(this),
             false, 
             swapAmount, 
-            extraData
+            extraData,
+            sqrtP(5004)
         );
 
         (int256 expectedAmount0Delta, int256 expectedAmount1Delta) = (
@@ -122,7 +124,8 @@ contract UniSwapV3PoolSwap is Test, UniSwapV3PoolUtils {
             address(this),
             false,
             swapAmount,
-            extraData
+            extraData,
+            sqrtP(5002)
         );
 
         (int256 expectedAmount0Delta, int256 expectedAmount1Delta) = (
@@ -150,6 +153,29 @@ contract UniSwapV3PoolSwap is Test, UniSwapV3PoolUtils {
     }
 
 
+    function testSwapBuyUSDCNotEnoughLiquidity() public {
+        LiquidityRange[] memory liquidity = new LiquidityRange[](1);
+        liquidity[0] = liquidityRange(4545, 5500, 1 ether, 5000 ether, 5000);
+        TestCaseParams memory params = TestCaseParams({
+            wethBalance: 1 ether,
+            usdcBalance: 5000 ether,
+            currentPrice: 5000,
+            liquidity: liquidity,
+            transferInMintCallback: true,
+            transferInSwapCallback: true,
+            mintLiquidity: true
+        });
+        setupTestCase(params);
+
+        uint256 swapAmount = 1.1 ether;
+        token0.mint(address(this), swapAmount);
+        token0.approve(address(this), swapAmount);
+
+        vm.expectRevert(abi.encodeWithSignature("NotEnoughLiquidity()"));
+        pool.swap(address(this), true, swapAmount, extraData, sqrtP(4000));
+    }
+
+
     function testSwapInsufficientInputAmount() public {
         LiquidityRange[] memory liquidity = new LiquidityRange[](1);
         liquidity[0] = liquidityRange(4545, 5500, 1 ether, 5000 ether, 5000);
@@ -165,7 +191,7 @@ contract UniSwapV3PoolSwap is Test, UniSwapV3PoolUtils {
         setupTestCase(params);
 
         vm.expectRevert(abi.encodeWithSignature("InsufficientInputAmount()"));
-        pool.swap(address(this), false, 42 ether, "");
+        pool.swap(address(this), false, 42 ether, "", sqrtP(5004));
     }
 
 

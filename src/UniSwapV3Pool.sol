@@ -15,6 +15,7 @@ import "./interfaces/IUniswapV3Pool.sol";
 import "./interfaces/IERC20.sol";
 import "./interfaces/IUniswapV3MintCallback.sol";
 import "./interfaces/IUniswapV3SwapCallback.sol";
+import "./interfaces/IUniswapV3FlashCallback.sol";
 
 contract UniSwapV3Pool is IUniswapV3Pool{
     using TickBitmap for mapping(int16 => uint256);
@@ -24,17 +25,17 @@ contract UniSwapV3Pool is IUniswapV3Pool{
 
     event Mint(
         address sender, 
-        address owner, 
-        int24 loTick, 
-        int24 hiTick, 
+        address indexed owner, 
+        int24 indexed loTick, 
+        int24 indexed hiTick, 
         uint128 amount, 
         uint256 amount0, 
         uint256 amount1
     );
 
     event Swap(
-        address sender,
-        address recipient,
+        address indexed sender,
+        address indexed recipient,
         int256 amount0, 
         int256 amount1,
         uint160 sqrtX96Price,
@@ -42,10 +43,17 @@ contract UniSwapV3Pool is IUniswapV3Pool{
         uint128 liquidity
     );
 
+    event Flash(
+        address indexed recipient,
+        uint256 amount0,
+        uint256 amount1
+    );
+
     error InvalidTickRange();
     error ZeroLiquidity();
     error InsufficientInputAmount();
     error NotEnoughLiquidity();
+    error InvalidPriceLimit();
 
     // https://uniswap.org/blog/uniswap-v3-math-primer
     int24 internal constant MIN_TICK = -887272;
@@ -200,6 +208,8 @@ contract UniSwapV3Pool is IUniswapV3Pool{
             revert InsufficientInputAmount();
         }
 
+        console.log("liquidity minted, added liquidity: %s", amount);
+
         emit Mint(msg.sender, owner, loTick, hiTick, amount, amount0, amount1);
 
     }
@@ -216,11 +226,22 @@ contract UniSwapV3Pool is IUniswapV3Pool{
         address recipient, 
         bool zeroForOne,
         uint256 amountSpecified,
-        bytes calldata data
+        bytes calldata data,
+        uint160 sqrtPriceLimit
         ) public returns (int256 amount0, int256 amount1){
 
         Slot0 memory _slot0 = slot0;
         uint128 _liquidity = liquidity;
+
+        if (
+            zeroForOne ? 
+            (sqrtPriceLimit > _slot0.sqrtPriceX96 || sqrtPriceLimit < TickMath.MIN_SQRT_RATIO) :
+            (sqrtPriceLimit < _slot0.sqrtPriceX96 || sqrtPriceLimit > TickMath.MAX_SQRT_RATIO)
+        ) {
+            revert InvalidPriceLimit();
+
+        }
+
 
         SwapState memory state = SwapState({
             amountRemaining: amountSpecified,
@@ -230,7 +251,7 @@ contract UniSwapV3Pool is IUniswapV3Pool{
             liquidity: _liquidity
         });
 
-        while (state.amountRemaining > 0) {
+        while (state.amountRemaining > 0 && state.sqrtPrice != sqrtPriceLimit) {
             StepState memory step;
 
             step.sqrtPriceBefore = state.sqrtPrice;
@@ -244,7 +265,10 @@ contract UniSwapV3Pool is IUniswapV3Pool{
 
             (state.sqrtPrice, step.amountIn, step.amountOut) = SwapMath.computeSwapStep(
                 step.sqrtPriceBefore, 
-                step.sqrtPriceAfter,
+                ((zeroForOne ? 
+                step.sqrtPriceAfter < sqrtPriceLimit:
+                step.sqrtPriceAfter > sqrtPriceLimit) ? 
+                sqrtPriceLimit: step.sqrtPriceAfter),
                 liquidity,
                 state.amountRemaining
             );
@@ -286,10 +310,16 @@ contract UniSwapV3Pool is IUniswapV3Pool{
             (slot0.tick, slot0.sqrtPriceX96) = (state.tick, state.sqrtPrice);
         }
         
+        console.log("new tick");
+        console.logInt(slot0.tick);
+        console.logUint(slot0.sqrtPriceX96);
+
         (amount0, amount1) = zeroForOne? 
         (int256(amountSpecified - state.amountRemaining), -int256(state.amountCalculated)):
         (-int256(state.amountCalculated), int256(amountSpecified - state.amountRemaining));
 
+
+        console.log("prepare to send callback function @ %s", msg.sender);
         if (zeroForOne) {
             IERC20(token1).transfer(recipient, uint256(-amount1));
 
@@ -312,6 +342,27 @@ contract UniSwapV3Pool is IUniswapV3Pool{
 
         emit Swap(msg.sender, recipient, amount0, amount1, _slot0.sqrtPriceX96, _slot0.tick, liquidity);
 
+    }
+
+
+    function flash(uint256 amount0, uint256 amount1, bytes calldata data) public {
+        uint256 balance0Before = IERC20(token0).balanceOf(address(this));
+        uint256 balance1Before = IERC20(token1).balanceOf(address(this));
+
+        if (amount0 > 0) {
+            IERC20(token0).transfer(msg.sender, amount0);
+        }
+
+        if (amount1 > 0) {
+            IERC20(token1).transfer(msg.sender, amount1);
+        }
+
+        IUniswapV3FlashCallback(msg.sender).uniswapV3FlashCallback(data);
+
+        require(IERC20(token0).balanceOf(address(this)) >= balance0Before);
+        require(IERC20(token1).balanceOf(address(this)) >= balance1Before);
+
+        emit Flash(msg.sender, amount0, amount1);
     }
 
 }

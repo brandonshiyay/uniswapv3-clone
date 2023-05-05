@@ -203,7 +203,64 @@ contract UniSwapManagerTest is Test, TestUtils {
     }
 
 
-    function testManagerSwapUSDCForEth() public {
+    function testManagerSwapETHForUSDC() public {
+        IUniswapV3Manager.MintParams[]
+            memory mints = new IUniswapV3Manager.MintParams[](1);
+        mints[0] = mintParams(4545, 5500, 1 ether, 5000 ether);
+        TestCaseParams memory params = TestCaseParams({
+            wethBalance: 1 ether,
+            usdcBalance: 5000 ether,
+            currentPrice: 5000,
+            mints: mints,
+            transferInMintCallback: true,
+            transferInSwapCallback: true,
+            mintLiqudity: true
+        });
+        (uint256 poolBalance0, uint256 poolBalance1) = setupTestCase(params);
+
+        uint256 swapAmount = 0.01337 ether;
+        token0.mint(address(this), swapAmount);
+        token0.approve(address(manager), swapAmount);
+
+        (int256 userBalance0Before, int256 userBalance1Before) = (
+            int256(token0.balanceOf(address(this))),
+            int256(token1.balanceOf(address(this)))
+        );
+
+        (int256 amount0Delta, int256 amount1Delta) = manager.swap(
+            address(pool),
+            true,
+            swapAmount,
+            extraData,
+            sqrtP(4993)
+        );
+
+        (int256 expectedAmount0Delta, int256 expectedAmount1Delta) = (
+            0.01337 ether,
+            -66.807123823853842027 ether
+        );
+
+        assertEq(amount0Delta, expectedAmount0Delta, "invalid ETH out");
+        assertEq(amount1Delta, expectedAmount1Delta, "invalid USDC in");
+
+        assertSwapState(
+            ExpectedStateAfterSwap({
+                pool: pool,
+                token0: token0,
+                token1: token1,
+                userBalance0: uint256(userBalance0Before - amount0Delta),
+                userBalance1: uint256(userBalance1Before - amount1Delta),
+                poolBalance0: uint256(int256(poolBalance0) + amount0Delta),
+                poolBalance1: uint256(int256(poolBalance1) + amount1Delta),
+                sqrtPriceX96: 5598737223630966236662554421688, // 4993.683362269102
+                tick: 85163,
+                currentLiquidity: liquidity(mints[0], 5000)
+            })
+        );
+    }
+
+
+    function testManagerSwapUSDCForETH() public {
         IUniswapV3Manager.MintParams[]
             memory mints = new IUniswapV3Manager.MintParams[](1);
         mints[0] = mintParams(4545, 5500, 1 ether, 5000 ether);
@@ -231,7 +288,8 @@ contract UniSwapManagerTest is Test, TestUtils {
             address(pool),
             false,
             swapAmount,
-            extraData
+            extraData,
+            sqrtP(5004)
         );
 
         (int256 expectedAmount0Delta, int256 expectedAmount1Delta) = (

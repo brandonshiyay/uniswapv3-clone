@@ -1,0 +1,89 @@
+[
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "bytes",
+        "name": "errorData",
+        "type": "bytes"
+      }
+    ],
+    "name": "ErrorData",
+    "type": "event"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "pool",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amountIn",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bool",
+            "name": "zeroForOne",
+            "type": "bool"
+          },
+          {
+            "internalType": "uint160",
+            "name": "sqrtPriceLimit",
+            "type": "uint160"
+          }
+        ],
+        "internalType": "struct UniSwapV3Quoter.QuoteParams",
+        "name": "params",
+        "type": "tuple"
+      }
+    ],
+    "name": "quote",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "amountOut",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint160",
+        "name": "sqrtPriceAfter",
+        "type": "uint160"
+      },
+      {
+        "internalType": "int24",
+        "name": "nextTick",
+        "type": "int24"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "int256",
+        "name": "delta0",
+        "type": "int256"
+      },
+      {
+        "internalType": "int256",
+        "name": "delta1",
+        "type": "int256"
+      },
+      {
+        "internalType": "bytes",
+        "name": "data",
+        "type": "bytes"
+      }
+    ],
+    "name": "uniswapV3SwapCallback",
+    "outputs": [],
+    "stateMutability": "view",
+    "type": "function"
+  }
+]

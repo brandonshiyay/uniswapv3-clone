@@ -15,6 +15,7 @@ contract UniSwapV3PoolTest is Test, UniSwapV3PoolUtils {
     UniSwapV3Pool pool;
     bool transferInMintCallback = true;
     bool transferInSwapCallback = false;
+    bool flashCallbackCalled = false;
 
 
     function setUp() public {
@@ -224,6 +225,27 @@ contract UniSwapV3PoolTest is Test, UniSwapV3PoolUtils {
     }
 
 
+    function testFlash() public {
+        LiquidityRange[] memory liquidity = new LiquidityRange[](1);
+        liquidity[0] = liquidityRange(4545, 5500, 1 ether, 5000 ether, 5000);
+        TestCaseParams memory params = TestCaseParams({
+            wethBalance: 1 ether,
+            usdcBalance: 5000 ether,
+            currentPrice: 5000,
+            liquidity: liquidity,
+            transferInMintCallback: true,
+            transferInSwapCallback: true,
+            mintLiquidity: true
+        });
+
+        setupTestCase(params);
+
+        pool.flash(0.1 ether, 1000 ether, abi.encodePacked(uint256(0.1 ether), uint256(1000 ether)));
+
+        assertTrue(flashCallbackCalled, "flash not called");
+    }
+
+
     function uniswapV3MintCallback(
         uint256 amount0, 
         uint256 amount1, 
@@ -245,6 +267,22 @@ contract UniSwapV3PoolTest is Test, UniSwapV3PoolUtils {
             IERC20(extraData.token0).transferFrom(extraData.payer, msg.sender, amount0);
             IERC20(extraData.token1).transferFrom(extraData.payer, msg.sender, amount1);
         }
+    }
+
+
+    function uniswapV3FlashCallback(
+        bytes memory data
+    ) public {
+        (uint256 amount0, uint256 amount1) = abi.decode(data, (uint256, uint256));
+        if (amount0 > 0) {
+            token0.transfer(msg.sender, amount0);
+        }
+
+        if (amount1 > 0) {
+            token1.transfer(msg.sender, amount1);
+        }
+
+        flashCallbackCalled = true;
     }
 
 

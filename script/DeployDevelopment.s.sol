@@ -7,14 +7,15 @@ import "../src/UniSwapV3Pool.sol";
 import "../src/UniSwapV3Manager.sol";
 import "../src/UniSwapV3Quoter.sol";
 import "forge-std/console.sol";
+import "../test/TestUtils.sol";
 
 
-contract DeployDevelopment is Script {
+contract DeployDevelopment is Script, TestUtils {
     function run() public {
-        uint256 wethBalance = 1 ether;
-        uint256 usdcBalance = 5042 ether;
-        int24 currentTick = 85176;
-        uint160 currentSqrtPrice = 5602277097478614198912276234240;
+        uint256 wethBalance = 10 ether;
+        uint256 usdcBalance = 100000 ether;
+        int24 currentTick = tick(5000);
+        uint160 currentSqrtPrice = sqrtP(5000);
 
         vm.startBroadcast();
 
@@ -34,12 +35,16 @@ contract DeployDevelopment is Script {
         token0.mint(msg.sender, wethBalance);
         token1.mint(msg.sender, usdcBalance);
 
+        token0.approve(address(manager), wethBalance);
+        token1.approve(address(manager), usdcBalance);
+
+        vm.stopBroadcast();
+
         console.log("WETH address", address(token0));
         console.log("USDC address", address(token1));
         console.log("Pool address", address(pool));
         console.log("Manager address", address(manager));
         console.log("Quoter address", address(quoter));
 
-        vm.stopBroadcast();
     }
 }

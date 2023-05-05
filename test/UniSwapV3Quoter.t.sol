@@ -62,17 +62,70 @@ contract UniSwapQuoterTest is Test, TestUtils   {
 
     }
 
+
+    function testQuoteUSDCforETH() public {
+        (uint256 amountOut, uint160 sqrtPriceX96After, int24 tickAfter) = quoter
+            .quote(
+                UniSwapV3Quoter.QuoteParams({
+                    pool: address(pool),
+                    zeroForOne: true,
+                    amountIn: 0.01337 ether,
+                    sqrtPriceLimit: sqrtP(4993)
+                })
+            );
+
+        assertEq(amountOut, 66.808387150349832078 ether, "invalid amountOut");
+        assertEq(
+            sqrtPriceX96After,
+            5598789786864463348083797021659,
+            "invalid sqrtPriceX96After"
+        );
+        assertEq(tickAfter, 85163, "invalid tickAFter");
+    }
+
+
     function testQuoterETHForUSDC() public {
         (uint256 amountOut, 
         uint160 sqrtPriceAfter, 
         int24 nextTick) = quoter.quote(UniSwapV3Quoter.QuoteParams({
             pool: address(pool),
             zeroForOne: true,
-            amountIn: 0.01337 ether
+            amountIn: 0.1 ether,
+            sqrtPriceLimit: sqrtP(4000)
         }));
-        assertEq(amountOut, 66.808387150349832078 ether);
-        assertEq(sqrtPriceAfter, 5598789786864463348083797021659);
-        assertEq(nextTick, 85163);
+        assertEq(amountOut, 497.681449732483977757 ether);
+        assertEq(sqrtPriceAfter, 5576298775352497935606827197639);
+        assertEq(nextTick, 85083);
+    }
+
+
+    function testQuoteAndSwapUSDCforETH() public {
+        uint256 amountIn = 0.01337 ether;
+        (uint256 amountOut, , ) = quoter.quote(
+            UniSwapV3Quoter.QuoteParams({
+                pool: address(pool),
+                zeroForOne: true,
+                amountIn: amountIn,
+                sqrtPriceLimit: sqrtP(4993)
+            })
+        );
+
+        bytes memory extra = abi.encode(IUniswapV3Pool.CallbackData({
+            token0: address(token0),
+            token1: address(token1),
+            payer: address(this)})
+        );
+
+        (int256 amount0Delta, int256 amount1Delta) = manager.swap(
+            address(pool),
+            true,
+            amountIn,
+            extra,
+            sqrtP(4993)
+        );
+
+        assertEq(uint256(amount0Delta), amountIn, "invalid amount0Delta");
+        assertEq(uint256(-amount1Delta), amountOut, "invalid amount1Delta");
     }
 
 }
